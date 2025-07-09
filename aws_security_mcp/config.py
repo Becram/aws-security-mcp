@@ -12,9 +12,10 @@ from pydantic import BaseModel, Field, validator
 # Load environment variables from .env file if present
 load_dotenv()
 
+
 def load_yaml_config() -> Dict[str, Any]:
     """Load configuration from config.yaml file.
-    
+
     Returns:
         Dictionary containing configuration from YAML file
     """
@@ -22,23 +23,26 @@ def load_yaml_config() -> Dict[str, Any]:
     config_paths = [
         Path(__file__).parent.parent / "config.yaml",  # Project root
         Path("config.yaml"),                          # Current directory
-        Path(__file__).parent / "config.yaml",       # Same directory as this file
+        # Same directory as this file
+        Path(__file__).parent / "config.yaml",
     ]
-    
+
     for config_path in config_paths:
         if config_path.exists():
             try:
                 with open(config_path, 'r') as f:
                     return yaml.safe_load(f) or {}
             except Exception as e:
-                logging.getLogger(__name__).warning(f"Error loading config from {config_path}: {e}")
+                logging.getLogger(__name__).warning(
+                    f"Error loading config from {config_path}: {e}")
                 continue
-    
+
     # If no config file found, return minimal defaults (config.yaml should exist)
-    logging.getLogger(__name__).warning("No config.yaml found, using minimal built-in defaults")
+    logging.getLogger(__name__).warning(
+        "No config.yaml found, using minimal built-in defaults")
     return {
         "aws": {
-            "region": "ap-south-1",
+            "region": "eu-west-1",
             "profile": None
         },
         "server": {
@@ -53,7 +57,7 @@ def load_yaml_config() -> Dict[str, Any]:
             "client_cache_ttl": 3600
         },
         "cross_account": {
-            "role_name": "aws-security-mcp-cross-account-access",
+            "role_name": "aws-security",
             "session_name": "aws-security-mcp-session",
             "session_duration_seconds": 3600,
             "refresh_threshold_minutes": 5,
@@ -63,9 +67,10 @@ def load_yaml_config() -> Dict[str, Any]:
         }
     }
 
+
 class AWSConfig(BaseModel):
     """AWS configuration settings."""
-    
+
     # AWS credentials - ALWAYS from environment variables for security
     aws_access_key_id: Optional[str] = Field(
         description="AWS access key ID (environment variable only)"
@@ -76,7 +81,7 @@ class AWSConfig(BaseModel):
     aws_session_token: Optional[str] = Field(
         description="AWS session token for temporary credentials (environment variable only)"
     )
-    
+
     # Non-sensitive AWS settings - from YAML with environment overrides
     aws_region: str = Field(
         description="AWS region for API calls"
@@ -84,35 +89,36 @@ class AWSConfig(BaseModel):
     aws_profile: Optional[str] = Field(
         description="AWS profile name to use"
     )
-    
+
     @validator('aws_region')
     def validate_region(cls, v: str) -> str:
         """Validate AWS region format."""
         if not v:
             return "us-east-1"
-        
+
         # Basic format validation for common region prefixes
         valid_prefixes = ["us-", "eu-", "ap-", "ca-", "sa-", "af-", "me-"]
         if not any(v.startswith(prefix) for prefix in valid_prefixes):
-            raise ValueError(f"Invalid AWS region format: {v}. Must start with one of {valid_prefixes}")
-        
+            raise ValueError(
+                f"Invalid AWS region format: {v}. Must start with one of {valid_prefixes}")
+
         return v
-    
+
     @property
     def has_iam_credentials(self) -> bool:
         """Check if IAM access key credentials are set."""
         return bool(self.aws_access_key_id and self.aws_secret_access_key)
-    
+
     @property
     def has_sts_credentials(self) -> bool:
         """Check if STS temporary credentials are set."""
         return bool(self.aws_access_key_id and self.aws_secret_access_key and self.aws_session_token)
-    
+
     @property
     def has_profile(self) -> bool:
         """Check if an AWS profile is set."""
         return bool(self.aws_profile)
-    
+
     @property
     def credentials_source(self) -> str:
         """Determine the source of credentials to use."""
@@ -123,54 +129,58 @@ class AWSConfig(BaseModel):
         elif self.has_iam_credentials:
             return "iam"
         else:
-            return "auto"  # Let boto3 handle credential resolution (ECS task role, instance profile, etc.)
-    
+            # Let boto3 handle credential resolution (ECS task role, instance profile, etc.)
+            return "auto"
+
     @property
     def is_ecs_environment(self) -> bool:
         """Check if running in ECS environment."""
         import os
         # ECS provides these environment variables
         return bool(
-            os.getenv("AWS_EXECUTION_ENV") or 
+            os.getenv("AWS_EXECUTION_ENV") or
             os.getenv("ECS_CONTAINER_METADATA_URI") or
             os.getenv("ECS_CONTAINER_METADATA_URI_V4") or
             os.getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
         )
-    
+
     @property
     def is_ec2_environment(self) -> bool:
         """Check if running in EC2 environment with instance profile."""
         import os
         # EC2 instance metadata service availability (simplified check)
         return bool(os.getenv("AWS_EXECUTION_ENV") == "EC2-Instance")
-    
+
     def validate_ecs_credentials(self) -> bool:
         """Validate that ECS task role credentials are accessible.
-        
+
         Returns:
             True if ECS credentials are accessible, False otherwise
         """
         if not self.is_ecs_environment:
             return False
-            
+
         try:
             import boto3
             # Try to create a session and get caller identity
             session = boto3.Session(region_name=self.aws_region)
             sts_client = session.client('sts')
             identity = sts_client.get_caller_identity()
-            
+
             # If we get here, credentials are working
-            logging.getLogger(__name__).debug(f"ECS task role validated: {identity.get('Arn', 'Unknown ARN')}")
+            logging.getLogger(__name__).debug(
+                f"ECS task role validated: {identity.get('Arn', 'Unknown ARN')}")
             return True
-            
+
         except Exception as e:
-            logging.getLogger(__name__).error(f"ECS task role validation failed: {e}")
+            logging.getLogger(__name__).error(
+                f"ECS task role validation failed: {e}")
             return False
+
 
 class CrossAccountConfig(BaseModel):
     """Cross-account credential configuration settings."""
-    
+
     role_name: str = Field(
         description="Name of the role to assume in target accounts"
     )
@@ -193,9 +203,10 @@ class CrossAccountConfig(BaseModel):
         description="Maximum number of concurrent role assumptions"
     )
 
+
 class AthenaConfig(BaseModel):
     """Athena configuration settings."""
-    
+
     default_output_location: str = Field(
         description="Default S3 location for Athena query results"
     )
@@ -205,27 +216,31 @@ class AthenaConfig(BaseModel):
     default_catalog: str = Field(
         description="Default data catalog for Athena queries"
     )
-    
+
     @validator('default_output_location')
     def validate_output_location(cls, v: str) -> str:
         """Validate S3 output location format."""
         if not v:
             raise ValueError("Default output location cannot be empty")
-        
+
         if not v.startswith('s3://'):
-            raise ValueError("Default output location must be a valid S3 URI starting with 's3://'")
-        
+            raise ValueError(
+                "Default output location must be a valid S3 URI starting with 's3://'")
+
         if v == 's3://':
-            raise ValueError("Default output location must include bucket name")
-        
+            raise ValueError(
+                "Default output location must include bucket name")
+
         if not v.endswith('/'):
-            raise ValueError("Default output location should end with '/' to specify a directory")
-        
+            raise ValueError(
+                "Default output location should end with '/' to specify a directory")
+
         return v
+
 
 class MCPServerConfig(BaseModel):
     """MCP server configuration settings."""
-    
+
     host: str = Field(
         description="Host address to bind the server"
     )
@@ -253,36 +268,39 @@ class MCPServerConfig(BaseModel):
     client_cache_ttl: int = Field(
         description="Time to live for cached AWS clients in seconds"
     )
-    
+
     @validator('log_level')
     def validate_log_level(cls, v: str) -> str:
         """Validate log level."""
         valid_levels = ["debug", "info", "warning", "error", "critical"]
         if v.lower() not in valid_levels:
-            raise ValueError(f"Invalid log level: {v}. Must be one of {valid_levels}")
+            raise ValueError(
+                f"Invalid log level: {v}. Must be one of {valid_levels}")
         return v.lower()
+
 
 class AppConfig(BaseModel):
     """Main application configuration."""
-    
+
     aws: AWSConfig
     server: MCPServerConfig
     cross_account: CrossAccountConfig
     athena: AthenaConfig
-    
+
     class Config:
         """Pydantic config options."""
         extra = "ignore"
 
+
 def load_config() -> AppConfig:
     """Load configuration from config.yaml and environment variables.
-    
+
     Returns:
         AppConfig instance with loaded configuration
     """
     # Load YAML configuration (single source of truth for defaults)
     yaml_config = load_yaml_config()
-    
+
     # AWS configuration - credentials from env, settings from YAML with env overrides
     aws_yaml = yaml_config.get("aws", {})
     aws_config = {
@@ -290,12 +308,12 @@ def load_config() -> AppConfig:
         "aws_access_key_id": os.getenv("AWS_ACCESS_KEY_ID"),
         "aws_secret_access_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
         "aws_session_token": os.getenv("AWS_SESSION_TOKEN"),
-        
+
         # Non-sensitive settings - YAML defaults with env override
         "aws_region": os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or aws_yaml.get("region"),
         "aws_profile": os.getenv("AWS_PROFILE") or aws_yaml.get("profile"),
     }
-    
+
     # Server configuration - YAML defaults with environment overrides
     server_yaml = yaml_config.get("server", {})
     server_config = {
@@ -309,7 +327,7 @@ def load_config() -> AppConfig:
         "max_concurrent_requests": int(os.getenv("MCP_MAX_CONCURRENT_REQUESTS") or server_yaml.get("max_concurrent_requests")),
         "client_cache_ttl": int(os.getenv("MCP_CLIENT_CACHE_TTL") or server_yaml.get("client_cache_ttl")),
     }
-    
+
     # Cross-account configuration - YAML defaults with environment overrides
     cross_account_yaml = yaml_config.get("cross_account", {})
     cross_account_config = {
@@ -321,7 +339,7 @@ def load_config() -> AppConfig:
         "auto_refresh_enabled": _parse_bool(os.getenv("MCP_AUTO_REFRESH_ENABLED")) if os.getenv("MCP_AUTO_REFRESH_ENABLED") else cross_account_yaml.get("auto_refresh_enabled"),
         "max_concurrent_assumptions": int(os.getenv("MCP_MAX_CONCURRENT_ASSUMPTIONS") or cross_account_yaml.get("max_concurrent_assumptions")),
     }
-    
+
     # Athena configuration - YAML defaults with environment overrides
     athena_yaml = yaml_config.get("athena", {})
     athena_config = {
@@ -329,7 +347,7 @@ def load_config() -> AppConfig:
         "default_workgroup": os.getenv("MCP_ATHENA_WORKGROUP") or athena_yaml.get("default_workgroup"),
         "default_catalog": os.getenv("MCP_ATHENA_CATALOG") or athena_yaml.get("default_catalog"),
     }
-    
+
     # Create the config object
     app_config = AppConfig(
         aws=AWSConfig(**aws_config),
@@ -337,14 +355,15 @@ def load_config() -> AppConfig:
         cross_account=CrossAccountConfig(**cross_account_config),
         athena=AthenaConfig(**athena_config),
     )
-    
+
     # Verify AWS credential configuration and log information
     if not app_config.server.startup_quiet:
         logger = logging.getLogger(__name__)
         logger.debug(f"AWS Region: {app_config.aws.aws_region}")
-        
+
         if app_config.aws.has_profile:
-            logger.debug(f"AWS credentials source: Profile ({app_config.aws.aws_profile})")
+            logger.debug(
+                f"AWS credentials source: Profile ({app_config.aws.aws_profile})")
         elif app_config.aws.has_sts_credentials:
             logger.debug("AWS credentials source: STS temporary credentials")
         elif app_config.aws.has_iam_credentials:
@@ -352,15 +371,18 @@ def load_config() -> AppConfig:
         else:
             # Provide more specific logging for container environments
             if app_config.aws.is_ecs_environment:
-                logger.debug("AWS credentials source: ECS Task Role (auto-resolution)")
+                logger.debug(
+                    "AWS credentials source: ECS Task Role (auto-resolution)")
             elif app_config.aws.is_ec2_environment:
-                logger.debug("AWS credentials source: EC2 Instance Profile (auto-resolution)")
+                logger.debug(
+                    "AWS credentials source: EC2 Instance Profile (auto-resolution)")
             else:
                 logger.debug(
                     "AWS credentials source: Auto-resolution (environment variables, ~/.aws/credentials, ECS task role, or instance profile)"
                 )
-    
+
     return app_config
+
 
 def _parse_bool(value: str) -> bool:
     """Parse string boolean values."""
@@ -368,5 +390,6 @@ def _parse_bool(value: str) -> bool:
         return value
     return str(value).lower() in ("true", "1", "yes", "on")
 
+
 # Global config instance
-config = load_config() 
+config = load_config()

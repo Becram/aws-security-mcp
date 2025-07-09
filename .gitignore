@@ -31,6 +31,7 @@ var/
 .installed.cfg
 *.egg
 .pytest_cache/
+tag_push.sh
 
 # Virtual environments
 venv/
