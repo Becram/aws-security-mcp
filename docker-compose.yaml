@@ -1,0 +1,19 @@
+services:
+  aws-security-mcp:
+    build: .
+    container_name: aws-security-mcp
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.aws:/home/mcpuser/.aws:ro
+    environment:
+      AWS_PROFILE: sandbox
+      # Uncomment and set these if you want to provide AWS credentials via Compose
+      # AWS_ACCESS_KEY_ID: "your-access-key-id"
+      # AWS_SECRET_ACCESS_KEY: "your-secret-access-key"
+      # AWS_DEFAULT_REGION: "your-region"
+    command: ["python", "aws_security_mcp/main.py", "sse"]
+    # For development, you can mount the code/config (optional):
+    # volumes:
+    #   - ./aws_security_mcp:/app/aws_security_mcp
+    #   - ./config.yaml:/app/config.yaml
