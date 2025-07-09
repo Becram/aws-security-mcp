@@ -40,7 +40,7 @@ server:
 # Cross-Account Access Configuration
 cross_account:
   # Role configuration
-  role_name: "ffmgmt"
+  role_name: "aws-security"
   session_name: "aws-security-mcp-session"
   session_duration_seconds: 3600 # 1 hour
   refresh_threshold_minutes: 10 # Refresh when < 10 minutes remaining
