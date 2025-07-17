@@ -118,3 +118,4 @@ secrets.json
 .python-version
 uv.lock
 .cursor/
+cf-*.yaml

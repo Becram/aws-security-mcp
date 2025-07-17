@@ -153,6 +153,8 @@ This policy provides comprehensive read-only access to AWS security services and
 
 **Optional Managed Policies**
 
+
+
 - **AthenaFullAccess**: `arn:aws:iam::aws:policy/AmazonAthenaFullAccess` (for simplified Athena log analysis)
 
 #### Important Notes
